@@ -3,22 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>chess-insights — game analysis demo</title>
+<title>chess-insights — analyse your Lichess games</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
-  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; background: #f6f7f9; color: #1f2430; line-height: 1.55; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; background: #f6f7f9; color: #1f2430; line-height: 1.5; }
   .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 80px; }
   h1 { font-size: 1.7rem; margin-bottom: 4px; }
-  .sub { color: #6b7280; margin-bottom: 28px; }
+  .sub { color: #6b7280; margin-bottom: 22px; }
   .sub a { color: #3556c7; }
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 30px; }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .controls input { flex: 1; min-width: 200px; padding: 11px 12px; border: 1px solid #d6dae0; border-radius: 8px; font-size: 1rem; }
+  .controls select { padding: 11px; border: 1px solid #d6dae0; border-radius: 8px; font-size: 0.95rem; background: #fff; }
+  .controls button { background: #3556c7; color: #fff; border: none; border-radius: 8px; padding: 11px 20px; font-size: 1rem; cursor: pointer; }
+  .controls button:disabled { opacity: 0.6; cursor: wait; }
+  .alt { background: none; border: none; color: #3556c7; cursor: pointer; font-size: 0.9rem; padding: 0; text-decoration: underline; }
+  #status { color: #6b7280; font-size: 0.9rem; min-height: 22px; margin-bottom: 18px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 26px; }
   .stat { background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 14px 10px; text-align: center; }
-  .stat b { display: block; font-size: 1.5rem; }
+  .stat b { display: block; font-size: 1.45rem; }
   .stat span { font-size: 0.78rem; color: #6b7280; }
-  section { margin-bottom: 34px; }
-  h2 { font-size: 1.1rem; margin-bottom: 6px; }
-  p.note { color: #6b7280; font-size: 0.92rem; margin-top: 0; }
-  img { max-width: 100%; border: 1px solid #e3e6ea; border-radius: 10px; background: #fff; }
-  .tilt { background: #fff8ec; border: 1px solid #f0dcb4; border-radius: 10px; padding: 14px 16px; font-size: 0.95rem; }
+  section { margin-bottom: 30px; background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 18px; }
+  section h2 { font-size: 1.05rem; margin: 0 0 4px; }
+  section p { color: #6b7280; font-size: 0.88rem; margin: 0 0 12px; }
+  .tilt-box { background: #fff8ec; border: 1px solid #f0dcb4; border-radius: 8px; padding: 12px 14px; font-size: 0.95rem; }
+  #results { display: none; }
   footer { color: #6b7280; font-size: 0.85rem; margin-top: 40px; border-top: 1px solid #e3e6ea; padding-top: 16px; }
   footer a { color: #3556c7; }
   @media (max-width: 640px) { .stats { grid-template-columns: repeat(2, 1fr); } }
@@ -27,54 +35,256 @@
 <body>
 <div class="wrap">
   <h1>chess-insights</h1>
-  <p class="sub">Analysis of 991 online chess games with Python and Pandas.
-  Code and instructions on <a href="https://github.com/911-parth/chess-insights">GitHub</a> —
-  run it on your own Lichess games.</p>
+  <p class="sub">Type your Lichess username and get an honest breakdown of your games:
+  rating trend, which openings actually work for you, and whether you tilt.
+  Everything runs in your browser using the public
+  <a href="https://lichess.org/api">Lichess API</a> — no account, nothing stored.
+  Python version on <a href="https://github.com/911-parth/chess-insights">GitHub</a>.</p>
 
-  <div class="stats">
-    <div class="stat"><b>991</b><span>games analysed</span></div>
-    <div class="stat"><b>45.4%</b><span>win rate</span></div>
-    <div class="stat"><b>1415</b><span>peak rating</span></div>
-    <div class="stat"><b>1265</b><span>avg opponent</span></div>
+  <div class="controls">
+    <input id="username" placeholder="Lichess username (e.g. thibault)" autocomplete="off">
+    <select id="max">
+      <option value="200">last 200 games</option>
+      <option value="500" selected>last 500 games</option>
+      <option value="1000">last 1000 games</option>
+    </select>
+    <button id="go">Analyse</button>
+  </div>
+  <button class="alt" id="sample">or load the sample dataset (991 games)</button>
+  <div id="status"></div>
+
+  <div id="results">
+    <div class="stats">
+      <div class="stat"><b id="s-games">—</b><span>games</span></div>
+      <div class="stat"><b id="s-winrate">—</b><span>win rate</span></div>
+      <div class="stat"><b id="s-peak">—</b><span>peak rating</span></div>
+      <div class="stat"><b id="s-opp">—</b><span>avg opponent</span></div>
+    </div>
+
+    <section>
+      <h2>Rating over time</h2>
+      <p>One line per time control (20+ games each).</p>
+      <canvas id="c-rating"></canvas>
+    </section>
+
+    <section>
+      <h2>Win rate by opening</h2>
+      <p>Most played openings, minimum 5 games. The red line is 50%.</p>
+      <canvas id="c-openings"></canvas>
+    </section>
+
+    <section>
+      <h2>The tilt check</h2>
+      <div class="tilt-box" id="tilt">—</div>
+    </section>
+
+    <section>
+      <h2>Win rate by time control and color</h2>
+      <canvas id="c-tc"></canvas>
+    </section>
+
+    <section>
+      <h2>When do you play?</h2>
+      <p>Games by hour of day (your local time zone... well, the game's UTC time actually).</p>
+      <canvas id="c-hour"></canvas>
+    </section>
   </div>
 
-  <section>
-    <h2>Rating over time</h2>
-    <p class="note">Split by time control. Blitz is where most of the games (and the pain) are.</p>
-    <img src="rating_over_time.png" alt="Rating over time chart">
-  </section>
-
-  <section>
-    <h2>Win rate by opening</h2>
-    <p class="note">Only openings with at least 10 games, to avoid small-sample noise.</p>
-    <img src="openings.png" alt="Win rate by opening chart">
-  </section>
-
-  <section>
-    <h2>The tilt check</h2>
-    <div class="tilt">
-      Loss rate right after a loss: <b>51.5%</b> &nbsp;·&nbsp; right after a win: <b>45.0%</b>.<br>
-      In other words: revenge games are a trap. The data says take a break.
-    </div>
-  </section>
-
-  <section>
-    <h2>Time controls and colors</h2>
-    <img src="time_controls.png" alt="Win rate by time control chart">
-    <br><br>
-    <img src="winrate_by_color.png" alt="Win rate by color chart">
-  </section>
-
-  <section>
-    <h2>When do I play?</h2>
-    <p class="note">Mostly evenings, which surprised exactly nobody.</p>
-    <img src="games_by_hour.png" alt="Games by hour chart">
-  </section>
-
   <footer>
-    Built by <a href="https://github.com/911-parth">Parth Chauhan</a> — Python, Pandas, Matplotlib,
-    data from the Lichess API. This page shows the included sample dataset.
+    Built by <a href="https://github.com/911-parth">Parth Chauhan</a>.
+    Started as a Python/Pandas project, ported to JS so anyone can run it on their own games.
   </footer>
 </div>
+
+<script>
+let charts = [];
+
+document.getElementById("go").onclick = analyseUser;
+document.getElementById("username").addEventListener("keydown", e => {
+  if (e.key === "Enter") analyseUser();
+});
+document.getElementById("sample").onclick = async () => {
+  setStatus("Loading sample dataset...");
+  const games = await (await fetch("sample_games.json")).json();
+  render(games, "sample data");
+};
+
+function setStatus(msg) {
+  document.getElementById("status").textContent = msg;
+}
+
+async function analyseUser() {
+  const user = document.getElementById("username").value.trim();
+  if (!user) return setStatus("Type a username first.");
+  const max = document.getElementById("max").value;
+  const btn = document.getElementById("go");
+  btn.disabled = true;
+  setStatus(`Fetching games for ${user} from Lichess (this can take ~20s for 1000 games)...`);
+  try {
+    const resp = await fetch(
+      `https://lichess.org/api/games/user/${encodeURIComponent(user)}?max=${max}&opening=true&moves=false`,
+      { headers: { Accept: "application/x-ndjson" } }
+    );
+    if (resp.status === 404) throw new Error("user not found");
+    if (!resp.ok) throw new Error("Lichess API returned " + resp.status);
+    const text = await resp.text();
+    const games = text.split("\n").filter(Boolean).map(line => parseGame(JSON.parse(line), user));
+    if (!games.length) throw new Error("no games found for this account");
+    render(games.reverse(), user); // lichess returns newest first
+  } catch (err) {
+    setStatus("Couldn't analyse: " + err.message);
+  }
+  btn.disabled = false;
+}
+
+function parseGame(g, username) {
+  const whiteName = (g.players.white.user && g.players.white.user.name || "").toLowerCase();
+  const meWhite = whiteName === username.toLowerCase();
+  const me = meWhite ? g.players.white : g.players.black;
+  const opp = meWhite ? g.players.black : g.players.white;
+  let r = "d";
+  if (g.winner) r = (g.winner === "white") === meWhite ? "w" : "l";
+  return {
+    t: Math.floor(g.createdAt / 1000),
+    tc: g.speed || "unknown",
+    c: meWhite ? "w" : "b",
+    mr: me.rating || 0,
+    or_: opp.rating || 0,
+    r,
+    o: (g.opening && g.opening.name || "Unknown").split(":")[0], // family only
+  };
+}
+
+// ---- analysis ----
+function render(games, label) {
+  charts.forEach(c => c.destroy());
+  charts = [];
+
+  const wins = games.filter(g => g.r === "w").length;
+  const peak = Math.max(...games.map(g => g.mr));
+  const avgOpp = Math.round(games.reduce((s, g) => s + g.or_, 0) / games.length);
+  document.getElementById("s-games").textContent = games.length;
+  document.getElementById("s-winrate").textContent = (100 * wins / games.length).toFixed(1) + "%";
+  document.getElementById("s-peak").textContent = peak;
+  document.getElementById("s-opp").textContent = avgOpp;
+
+  ratingChart(games);
+  openingsChart(games);
+  tiltCheck(games);
+  tcColorChart(games);
+  hourChart(games);
+
+  document.getElementById("results").style.display = "block";
+  setStatus(`Analysed ${games.length} games (${label}).`);
+}
+
+function ratingChart(games) {
+  const byTc = {};
+  games.forEach(g => (byTc[g.tc] = byTc[g.tc] || []).push(g));
+  const datasets = Object.entries(byTc)
+    .filter(([, arr]) => arr.length >= 20)
+    .map(([tc, arr], i) => ({
+      label: tc,
+      data: arr.map(g => ({ x: g.t * 1000, y: g.mr })),
+      borderColor: ["#3556c7", "#e08a00", "#2e9e5b", "#d64545", "#7e57c2"][i % 5],
+      borderWidth: 1.4,
+      pointRadius: 0,
+      tension: 0.15,
+    }));
+  charts.push(new Chart(document.getElementById("c-rating"), {
+    type: "line",
+    data: { datasets },
+    options: {
+      scales: {
+        x: { type: "linear", ticks: { callback: v => new Date(v).toISOString().slice(0, 7) }, grid: { display: false } },
+        y: { title: { display: true, text: "rating" } },
+      },
+      plugins: { legend: { position: "bottom" } },
+    },
+  }));
+}
+
+function openingsChart(games) {
+  const byOpening = {};
+  games.forEach(g => (byOpening[g.o] = byOpening[g.o] || []).push(g));
+  const rows = Object.entries(byOpening)
+    .filter(([, arr]) => arr.length >= 5)
+    .map(([o, arr]) => ({
+      o,
+      n: arr.length,
+      wr: 100 * arr.filter(g => g.r === "w").length / arr.length,
+    }))
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 10);
+  charts.push(new Chart(document.getElementById("c-openings"), {
+    type: "bar",
+    data: {
+      labels: rows.map(r => `${r.o} (${r.n})`),
+      datasets: [{ data: rows.map(r => r.wr.toFixed(1)), backgroundColor: "#5c6bc0" }],
+    },
+    options: {
+      indexAxis: "y",
+      scales: { x: { max: 100, title: { display: true, text: "win rate %" } } },
+      plugins: { legend: { display: false } },
+    },
+  }));
+}
+
+function tiltCheck(games) {
+  const afterLoss = [], afterWin = [];
+  for (let i = 0; i < games.length - 1; i++) {
+    if (games[i].r === "l") afterLoss.push(games[i + 1].r);
+    if (games[i].r === "w") afterWin.push(games[i + 1].r);
+  }
+  const el = document.getElementById("tilt");
+  if (!afterLoss.length || !afterWin.length) {
+    el.textContent = "Not enough games for a tilt check.";
+    return;
+  }
+  const lal = 100 * afterLoss.filter(r => r === "l").length / afterLoss.length;
+  const law = 100 * afterWin.filter(r => r === "l").length / afterWin.length;
+  const diff = lal - law;
+  let verdict;
+  if (diff > 8) verdict = "That's a real tilt pattern. Close the tab after a loss.";
+  else if (diff > 3) verdict = "Mild tilt. Revenge games are a trap.";
+  else verdict = "Impressively steady. No meaningful tilt detected.";
+  el.innerHTML = `Loss rate right after a loss: <b>${lal.toFixed(1)}%</b> · right after a win: <b>${law.toFixed(1)}%</b>.<br>${verdict}`;
+}
+
+function tcColorChart(games) {
+  const groups = {};
+  games.forEach(g => (groups[g.tc] = groups[g.tc] || []).push(g));
+  const labels = Object.keys(groups).filter(k => groups[k].length >= 10);
+  const wr = arr => 100 * arr.filter(g => g.r === "w").length / arr.length;
+  const white = games.filter(g => g.c === "w"), black = games.filter(g => g.c === "b");
+  charts.push(new Chart(document.getElementById("c-tc"), {
+    type: "bar",
+    data: {
+      labels: [...labels, "as white", "as black"],
+      datasets: [{
+        data: [...labels.map(l => wr(groups[l]).toFixed(1)), wr(white).toFixed(1), wr(black).toFixed(1)],
+        backgroundColor: [...labels.map(() => "#26a69a"), "#424242", "#9e9e9e"],
+      }],
+    },
+    options: {
+      scales: { y: { max: 100, title: { display: true, text: "win rate %" } } },
+      plugins: { legend: { display: false } },
+    },
+  }));
+}
+
+function hourChart(games) {
+  const hours = new Array(24).fill(0);
+  games.forEach(g => hours[new Date(g.t * 1000).getUTCHours()]++);
+  charts.push(new Chart(document.getElementById("c-hour"), {
+    type: "bar",
+    data: {
+      labels: hours.map((_, i) => i + "h"),
+      datasets: [{ data: hours, backgroundColor: "#7e57c2" }],
+    },
+    options: { plugins: { legend: { display: false } } },
+  }));
+}
+</script>
 </body>
 </html>
