@@ -5,6 +5,8 @@ national level in India), and I play way too much blitz online. At some point I
 wanted actual numbers instead of feelings: which openings do I actually score
 with? Do I really play worse after midnight? Am I tilting?
 
+**[See the results dashboard](https://911-parth.github.io/chess-insights/)** — live demo of the analysis output.
+
 So I built this. It pulls your games from the Lichess API and runs a proper
 analysis with Pandas + Matplotlib.
 

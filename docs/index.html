@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>chess-insights — game analysis demo</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; background: #f6f7f9; color: #1f2430; line-height: 1.55; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 1.7rem; margin-bottom: 4px; }
+  .sub { color: #6b7280; margin-bottom: 28px; }
+  .sub a { color: #3556c7; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 30px; }
+  .stat { background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 14px 10px; text-align: center; }
+  .stat b { display: block; font-size: 1.5rem; }
+  .stat span { font-size: 0.78rem; color: #6b7280; }
+  section { margin-bottom: 34px; }
+  h2 { font-size: 1.1rem; margin-bottom: 6px; }
+  p.note { color: #6b7280; font-size: 0.92rem; margin-top: 0; }
+  img { max-width: 100%; border: 1px solid #e3e6ea; border-radius: 10px; background: #fff; }
+  .tilt { background: #fff8ec; border: 1px solid #f0dcb4; border-radius: 10px; padding: 14px 16px; font-size: 0.95rem; }
+  footer { color: #6b7280; font-size: 0.85rem; margin-top: 40px; border-top: 1px solid #e3e6ea; padding-top: 16px; }
+  footer a { color: #3556c7; }
+  @media (max-width: 640px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>chess-insights</h1>
+  <p class="sub">Analysis of 991 online chess games with Python and Pandas.
+  Code and instructions on <a href="https://github.com/911-parth/chess-insights">GitHub</a> —
+  run it on your own Lichess games.</p>
+
+  <div class="stats">
+    <div class="stat"><b>991</b><span>games analysed</span></div>
+    <div class="stat"><b>45.4%</b><span>win rate</span></div>
+    <div class="stat"><b>1415</b><span>peak rating</span></div>
+    <div class="stat"><b>1265</b><span>avg opponent</span></div>
+  </div>
+
+  <section>
+    <h2>Rating over time</h2>
+    <p class="note">Split by time control. Blitz is where most of the games (and the pain) are.</p>
+    <img src="rating_over_time.png" alt="Rating over time chart">
+  </section>
+
+  <section>
+    <h2>Win rate by opening</h2>
+    <p class="note">Only openings with at least 10 games, to avoid small-sample noise.</p>
+    <img src="openings.png" alt="Win rate by opening chart">
+  </section>
+
+  <section>
+    <h2>The tilt check</h2>
+    <div class="tilt">
+      Loss rate right after a loss: <b>51.5%</b> &nbsp;·&nbsp; right after a win: <b>45.0%</b>.<br>
+      In other words: revenge games are a trap. The data says take a break.
+    </div>
+  </section>
+
+  <section>
+    <h2>Time controls and colors</h2>
+    <img src="time_controls.png" alt="Win rate by time control chart">
+    <br><br>
+    <img src="winrate_by_color.png" alt="Win rate by color chart">
+  </section>
+
+  <section>
+    <h2>When do I play?</h2>
+    <p class="note">Mostly evenings, which surprised exactly nobody.</p>
+    <img src="games_by_hour.png" alt="Games by hour chart">
+  </section>
+
+  <footer>
+    Built by <a href="https://github.com/911-parth">Parth Chauhan</a> — Python, Pandas, Matplotlib,
+    data from the Lichess API. This page shows the included sample dataset.
+  </footer>
+</div>
+</body>
+</html>
